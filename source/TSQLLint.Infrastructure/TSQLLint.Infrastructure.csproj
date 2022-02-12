@@ -1,7 +1,7 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp5.0</TargetFramework>
+    <TargetFrameworks>net5.0;net6.0</TargetFrameworks>
     <PackAsTool>true</PackAsTool>
     <PackageOutputPath>./artifacts</PackageOutputPath>
   </PropertyGroup>
@@ -16,7 +16,7 @@
     <PackageReference Include="Microsoft.SqlServer.DacFx" Version="150.5164.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
     <PackageReference Include="System.IO.Abstractions" Version="13.2.47" />
-    <PackageReference Include="TSQLLint.Common" Version="3.0.0" />
+    <PackageReference Include="TSQLLint.Common" Version="3.1.0" />
   </ItemGroup>
 
   <ItemGroup>

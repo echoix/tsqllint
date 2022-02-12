@@ -1,6 +1,6 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.27004.2010
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.32126.317
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TSQLLint", "TSQLLint\TSQLLint.csproj", "{7697E982-E7EA-4D1A-A26C-3DDA32423F1C}"
 EndProject
@@ -10,15 +10,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
 		..\.gitignore = ..\.gitignore
-		..\.npmignore = ..\.npmignore
-		..\.travis.yml = ..\.travis.yml
-		..\appveyor.yml = ..\appveyor.yml
 		..\CODE_OF_CONDUCT.md = ..\CODE_OF_CONDUCT.md
 		..\codecov.yml = ..\codecov.yml
 		..\CONTRIBUTING.MD = ..\CONTRIBUTING.MD
 		.stylecop\custom-dictionary.xml = .stylecop\custom-dictionary.xml
 		..\LICENSE = ..\LICENSE
-		..\package.json = ..\package.json
 		..\README.md = ..\README.md
 		.stylecop\stylecop.json = .stylecop\stylecop.json
 		.stylecop\stylecop.ruleset = .stylecop\stylecop.ruleset
