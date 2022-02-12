@@ -1,12 +1,33 @@
-﻿# http://editorconfig.org
-root = true
+# NOTE: Requires **VS2019 16.3** or later
 
-[*]
-charset = utf-8
-end_of_line = crlf
+# StyleCopeRules
+# Description: StyleCopeRules custom ruleset
 
-[*.cs]
-indent_style = space
-indent_size = 4
-insert_final_newline = true
-trim_trailing_whitespace = true
+# Code files
+[*.{cs,vb}]
+
+
+# Default severity for analyzer diagnostics - Requires **VS2019 16.5** or later
+dotnet_analyzer_diagnostic.severity = warning
+
+dotnet_diagnostic.SA0001.severity = none
+
+dotnet_diagnostic.SA1101.severity = none
+
+dotnet_diagnostic.SA1119.severity = none
+
+dotnet_diagnostic.SA1137.severity = none
+
+dotnet_diagnostic.SA1200.severity = none
+
+dotnet_diagnostic.SA1413.severity = none
+
+dotnet_diagnostic.SA1501.severity = none
+
+dotnet_diagnostic.SA1502.severity = none
+
+dotnet_diagnostic.SA1600.severity = none
+
+dotnet_diagnostic.SA1633.severity = none
+
+dotnet_diagnostic.SA1652.severity = none
