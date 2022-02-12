@@ -10,11 +10,7 @@ namespace TSQLLint.Infrastructure.CommandLineOptions
         public CommandLineOptions(string[] args)
         {
             Args = args;
-            //CommandLine.Parser.Default.ParseArgumentsStrict(args, this);
-            //CommandLine.Parser.Default.ParseArguments(args, this);
-            CommandLine.Parser.Default.ParseArguments<CommandLineOptions>(args);
-            //CommandLine.ParserExtensions.ParseArgument(this,args);
-            //var options = new Options
+            CommandLine.Parser.Default.ParseArgumentsStrict(args, this);
         }
 
         public string[] Args { get; set; }
@@ -40,8 +36,7 @@ namespace TSQLLint.Infrastructure.CommandLineOptions
             HelpText = "Generate default .tsqllintrc config file")]
         public bool Init { get; set; }
 
-        //[ValueList(typeof(List<string>))]
-        [Value(0)]
+        [ValueList(typeof(List<string>))]
         public List<string> LintPath { get; set; }
 
         [Option(
@@ -72,7 +67,7 @@ namespace TSQLLint.Infrastructure.CommandLineOptions
             HelpText = "Display this help dialog")]
         public bool Help { get; set; }
 
-        //[HelpVerbOption]
+        [HelpVerbOption]
         public string GetUsage()
         {
             var help = new HelpText
@@ -81,7 +76,7 @@ namespace TSQLLint.Infrastructure.CommandLineOptions
             };
 
             help.AddPreOptionsLine("tsqllint [options] [file.sql] | [dir] | [file.sql | dir]");
-            //help.AddOptions(this);
+            help.AddOptions(this);
             return help;
         }
     }
