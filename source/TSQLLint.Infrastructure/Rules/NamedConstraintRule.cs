@@ -1,25 +1,20 @@
-using System;
 using Microsoft.SqlServer.TransactSql.ScriptDom;
+using System;
 using TSQLLint.Core.Interfaces;
+using TSQLLint.Infrastructure.Rules.Common;
 
 namespace TSQLLint.Infrastructure.Rules
 {
-    public class NamedContraintRule : TSqlFragmentVisitor, ISqlRule
+    public class NamedConstraintRule : BaseRuleVisitor, ISqlRule
     {
-        private readonly Action<string, string, int, int> errorCallback;
-
-        public NamedContraintRule(Action<string, string, int, int> errorCallback)
+        public NamedConstraintRule(Action<string, string, int, int> errorCallback)
+            : base(errorCallback)
         {
-            this.errorCallback = errorCallback;
         }
 
-        public string RULE_NAME => "named-constraint";
+        public override string RULE_NAME => "named-constraint";
 
-        public string RULE_TEXT => "Named constraints in temp tables can cause collisions when run in parallel";
-
-        public int DynamicSqlStartColumn { get; set; }
-
-        public int DynamicSqlStartLine { get; set; }
+        public override string RULE_TEXT => "Named constraints in temp tables can cause collisions when run in parallel";
 
         public override void Visit(CreateTableStatement node)
         {
@@ -34,7 +29,7 @@ namespace TSQLLint.Infrastructure.Rules
 
             if (constraintVisitor.NamedConstraintExists)
             {
-                errorCallback(RULE_NAME, RULE_TEXT, node.StartLine, GetColumnNumber(node));
+                errorCallback(RULE_NAME, RULE_TEXT, GetLineNumber(node), GetColumnNumber(node));
             }
         }
 
@@ -55,13 +50,6 @@ namespace TSQLLint.Infrastructure.Rules
 
                 NamedConstraintExists = node.ConstraintIdentifier != null;
             }
-        }
-        
-        private int GetColumnNumber(TSqlFragment node)
-        {
-            return node.StartLine == DynamicSqlStartLine
-                ? node.StartColumn + DynamicSqlStartColumn
-                : node.StartColumn;
         }
     }
 }

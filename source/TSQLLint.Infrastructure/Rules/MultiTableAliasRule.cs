@@ -1,29 +1,23 @@
+using Microsoft.SqlServer.TransactSql.ScriptDom;
 using System;
 using System.Collections.Generic;
-using Microsoft.SqlServer.TransactSql.ScriptDom;
 using TSQLLint.Core.Interfaces;
 using TSQLLint.Infrastructure.Rules.Common;
 
 namespace TSQLLint.Infrastructure.Rules
 {
-    public class MultiTableAliasRule : TSqlFragmentVisitor, ISqlRule
+    public class MultiTableAliasRule : BaseRuleVisitor, ISqlRule
     {
-        private readonly Action<string, string, int, int> errorCallback;
-
         private HashSet<string> cteNames = new HashSet<string>();
 
         public MultiTableAliasRule(Action<string, string, int, int> errorCallback)
+            : base(errorCallback)
         {
-            this.errorCallback = errorCallback;
         }
 
-        public string RULE_NAME => "multi-table-alias";
+        public override string RULE_NAME => "multi-table-alias";
 
-        public string RULE_TEXT => "Unaliased table found in multi table joins";
-
-        public int DynamicSqlStartColumn { get; set; }
-
-        public int DynamicSqlStartLine { get; set; }
+        public override string RULE_TEXT => "Unaliased table found in multi table joins";
 
         public override void Visit(TSqlStatement node)
         {
@@ -36,10 +30,10 @@ namespace TSQLLint.Infrastructure.Rules
         {
             void ChildCallback(TSqlFragment childNode)
             {
-                var dynamicSqlAdjustment = AdjustColumnForDymamicSQL(childNode);
+                var dynamicSqlAdjustment = GetDynamicSqlColumnOffset(childNode);
                 var tabsOnLine = ColumnNumberCalculator.CountTabsBeforeToken(childNode.StartLine, childNode.LastTokenIndex, childNode.ScriptTokenStream);
                 var column = ColumnNumberCalculator.GetColumnNumberBeforeToken(tabsOnLine, childNode.ScriptTokenStream[childNode.FirstTokenIndex]);
-                errorCallback(RULE_NAME, RULE_TEXT, childNode.StartLine, column + dynamicSqlAdjustment);
+                errorCallback(RULE_NAME, RULE_TEXT, GetLineNumber(childNode), column + dynamicSqlAdjustment);
             }
 
             var childTableJoinVisitor = new ChildTableJoinVisitor();
@@ -52,13 +46,6 @@ namespace TSQLLint.Infrastructure.Rules
 
             var childTableAliasVisitor = new ChildTableAliasVisitor(ChildCallback, cteNames);
             node.AcceptChildren(childTableAliasVisitor);
-        }
-
-        private int AdjustColumnForDymamicSQL(TSqlFragment node)
-        {
-            return node.StartLine == DynamicSqlStartLine
-                ? DynamicSqlStartColumn
-                : 0;
         }
 
         public class ChildCommonTableExpressionVisitor : TSqlFragmentVisitor

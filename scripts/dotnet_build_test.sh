@@ -49,13 +49,16 @@ command -v reportgenerator >/dev/null 2>&1 || {
     dotnet tool install dotnet-reportgenerator-globaltool --global --version 5.0.2;
 }
 
-info "running test project"
+TEST_TARGET_FRAMEWORK=$1
+
+info "running test project on $TEST_TARGET_FRAMEWORK"
 
 dotnet test \
     --no-restore \
     --collect:"XPlat Code Coverage" \
     --settings "$PROJECT_ROOT/source/coverlet.runsettings" \
     --results-directory "$COVERAGE_DIR" \
+    -property:TargetFramework=$TEST_TARGET_FRAMEWORK \
     "$PROJECT_ROOT/source/TSQLLint.sln"
 
 COVERAGE_FILE="$(find $COVERAGE_DIR -name coverage.opencover.xml)"
@@ -69,25 +72,25 @@ reportgenerator \
 cd "$COVERAGE_DIR"
 tar -zcf $COVERAGE_DIR/coverage-report.tgz report
 
-cd "$PROJECT_ROOT"
+#cd "$PROJECT_ROOT"
 
-if [[ -n "${COVERALLS_REPO_TOKEN}" ]]; then
-
-  info "pushing coverage results"
-
-  JOB_ID=${CIRCLE_WORKFLOW_JOB_ID:-"$HEAD_COMMIT"}
-
-  csmacnz.Coveralls --opencover -i "$COVERAGE_FILE" \
-      --repoToken $COVERALLS_REPO_TOKEN \
-      --commitId $HEAD_COMMIT \
-      --commitBranch $BRANCH_NAME \
-      --commitAuthor "$COMMIT_AUTHOR" \
-      --commitEmail "$COMMIT_AUTHOR_EMAIL" \
-      --commitMessage "$COMMIT_MESSAGE" \
-      --jobId $JOB_ID  \
-      --serviceName "circle-ci"  \
-      --useRelativePaths
-fi
+#if [[ -n "${COVERALLS_REPO_TOKEN}" ]]; then
+#
+#  info "pushing coverage results"
+#
+#  JOB_ID=${CIRCLE_WORKFLOW_JOB_ID:-"$HEAD_COMMIT"}
+#
+#  csmacnz.Coveralls --opencover -i "$COVERAGE_FILE" \
+#      --repoToken $COVERALLS_REPO_TOKEN \
+#      --commitId $HEAD_COMMIT \
+#      --commitBranch $BRANCH_NAME \
+#      --commitAuthor "$COMMIT_AUTHOR" \
+#      --commitEmail "$COMMIT_AUTHOR_EMAIL" \
+#      --commitMessage "$COMMIT_MESSAGE" \
+#      --jobId $JOB_ID  \
+#      --serviceName "circle-ci"  \
+#      --useRelativePaths
+#fi
 
 info "done"
 

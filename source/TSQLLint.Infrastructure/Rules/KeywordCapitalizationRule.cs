@@ -1,28 +1,25 @@
-using System;
-using System.Linq;
 using Microsoft.SqlServer.TransactSql.ScriptDom;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+using TSQLLint.Common;
 using TSQLLint.Core;
 using TSQLLint.Core.Interfaces;
 using TSQLLint.Infrastructure.Rules.Common;
 
 namespace TSQLLint.Infrastructure.Rules
 {
-    public class KeywordCapitalizationRule : TSqlFragmentVisitor, ISqlRule
+    public class KeywordCapitalizationRule : BaseRuleVisitor, ISqlRule
     {
-        private readonly Action<string, string, int, int> errorCallback;
-
         public KeywordCapitalizationRule(Action<string, string, int, int> errorCallback)
+            : base(errorCallback)
         {
-            this.errorCallback = errorCallback;
         }
 
-        public string RULE_NAME => "keyword-capitalization";
+        public override string RULE_NAME => "keyword-capitalization";
 
-        public string RULE_TEXT => "Expected TSQL Keyword to be capitalized";
-
-        public int DynamicSqlStartColumn { get; set; }
-
-        public int DynamicSqlStartLine { get; set; }
+        public override string RULE_TEXT => "Expected TSQL Keyword to be capitalized";
 
         public override void Visit(TSqlScript node)
         {
@@ -40,20 +37,29 @@ namespace TSQLLint.Infrastructure.Rules
                     continue;
                 }
 
-                var dynamicSQLAdjustment = AdjustColumnForDymamicSQL(token);
+                var dynamicSQLAdjustment = GetDynamicSqlColumnOffset(token);
 
                 // get a count of all tabs on the line that occur prior to the last token in this node
                 var tabsOnLine = ColumnNumberCalculator.CountTabsBeforeToken(token.Line, index, node.ScriptTokenStream);
                 var column = ColumnNumberCalculator.GetColumnNumberBeforeToken(tabsOnLine, token);
 
-                errorCallback(RULE_NAME, RULE_TEXT, token.Line, column + dynamicSQLAdjustment);
+                errorCallback(RULE_NAME, RULE_TEXT, GetLineNumber(token), column + dynamicSQLAdjustment);
             }
         }
-        private int AdjustColumnForDymamicSQL(TSqlParserToken node)
+
+        public override void FixViolation(List<string> fileLines, IRuleViolation ruleViolation, FileLineActions actions)
         {
-            return node.Line == DynamicSqlStartLine
-                ? DynamicSqlStartColumn
-                : 0;
+            var lineIndex = ruleViolation.Line - 1;
+            var line = fileLines[lineIndex];
+
+            var startCharIndex = ColumnNumberCalculator.GetIndex(line, ruleViolation.Column);
+
+            if (startCharIndex != -1)
+            {
+                var errorWord = new Regex(@"\w+").Matches(line[startCharIndex..]).First().Value;
+
+                actions.RepaceInlineAt(lineIndex, startCharIndex, errorWord.ToUpper());
+            }
         }
 
         private static bool IsUpperCase(string input)

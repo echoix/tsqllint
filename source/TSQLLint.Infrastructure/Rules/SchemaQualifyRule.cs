@@ -1,15 +1,14 @@
+using Microsoft.SqlServer.TransactSql.ScriptDom;
 using System;
 using System.Collections.Generic;
-using Microsoft.SqlServer.TransactSql.ScriptDom;
 using TSQLLint.Core.Interfaces;
+using TSQLLint.Infrastructure.Rules.Common;
 
 namespace TSQLLint.Infrastructure.Rules
 {
-    public class SchemaQualifyRule : TSqlFragmentVisitor, ISqlRule
+    public class SchemaQualifyRule : BaseRuleVisitor, ISqlRule
     {
-        private readonly Action<string, string, int, int> errorCallback;
-
-        private readonly List<string> tableAliases = new List<string>
+        private readonly List<string> tableAliases = new ()
         {
             "INSERTED",
             "UPDATED",
@@ -17,17 +16,13 @@ namespace TSQLLint.Infrastructure.Rules
         };
 
         public SchemaQualifyRule(Action<string, string, int, int> errorCallback)
+            : base(errorCallback)
         {
-            this.errorCallback = errorCallback;
         }
 
-        public string RULE_NAME => "schema-qualify";
+        public override string RULE_NAME => "schema-qualify";
 
-        public string RULE_TEXT => "Object name not schema qualified";
-
-        public int DynamicSqlStartLine { get; set; }
-
-        public int DynamicSqlStartColumn { get; set; }
+        public override string RULE_TEXT => "Object name not schema qualified";
 
         public override void Visit(TSqlStatement node)
         {
@@ -38,36 +33,57 @@ namespace TSQLLint.Infrastructure.Rules
 
         public override void Visit(NamedTableReference node)
         {
-            if (node.SchemaObject.SchemaIdentifier != null)
+            VisitTableName(node.SchemaObject, true);
+        }
+
+        public override void Visit(CreateTableStatement node)
+        {
+            VisitTableName(node.SchemaObjectName, false);
+        }
+
+        public override void Visit(AlterTableStatement node)
+        {
+            VisitTableName(node.SchemaObjectName, false);
+        }
+
+        public override void Visit(TruncateTableStatement node)
+        {
+            VisitTableName(node.TableName, false);
+        }
+
+        public override void Visit(DropTableStatement node)
+        {
+            foreach (var schemaObjectName in node.Objects)
+            {
+                VisitTableName(schemaObjectName, false);
+            }
+        }
+
+        private void VisitTableName(SchemaObjectName node, bool canHaveTableAliases)
+        {
+            if (node.SchemaIdentifier != null)
             {
                 return;
             }
 
             // don't attempt to enforce schema validation on temp tables
-            if (node.SchemaObject.BaseIdentifier.Value.Contains("#"))
+            if (node.BaseIdentifier.Value.Contains('#'))
             {
                 return;
             }
 
             // don't attempt to enforce schema validation on table aliases
-            if (tableAliases.FindIndex(x => x.Equals(node.SchemaObject.BaseIdentifier.Value, StringComparison.OrdinalIgnoreCase)) != -1)
+            if (canHaveTableAliases && tableAliases.Exists(x => x.Equals(node.BaseIdentifier.Value, StringComparison.OrdinalIgnoreCase)))
             {
                 return;
             }
 
-            errorCallback(RULE_NAME, RULE_TEXT, node.StartLine, GetColumnNumber(node));
-        }
-
-        private int GetColumnNumber(TSqlFragment node)
-        {
-            return node.StartLine == DynamicSqlStartLine
-                ? node.StartColumn + DynamicSqlStartColumn
-                : node.StartColumn;
+            errorCallback(RULE_NAME, RULE_TEXT, GetLineNumber(node), GetColumnNumber(node));
         }
 
         public class ChildAliasVisitor : TSqlFragmentVisitor
         {
-            public List<string> TableAliases { get; } = new List<string>();
+            public List<string> TableAliases { get; } = new ();
 
             public override void Visit(TableReferenceWithAlias node)
             {

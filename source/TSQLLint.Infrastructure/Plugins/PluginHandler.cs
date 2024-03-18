@@ -11,26 +11,33 @@ namespace TSQLLint.Infrastructure.Plugins
 {
     public class PluginHandler : IPluginHandler
     {
-        private readonly IReporter reporter;
         private readonly IAssemblyWrapper assemblyWrapper;
         private readonly IFileSystem fileSystem;
+        private readonly IReporter reporter;
         private readonly IFileversionWrapper versionWrapper;
         private Dictionary<Type, IPlugin> plugins;
+        private Dictionary<string, ISqlLintRule> rules;
 
-        public PluginHandler(IReporter reporter)
-            : this(reporter, new FileSystem(), new AssemblyWrapper(), new VersionInfoWrapper()) { }
+        public PluginHandler(IReporter reporter, Dictionary<string, ISqlLintRule> rules)
+            : this(reporter, new FileSystem(), new AssemblyWrapper(), new VersionInfoWrapper(), rules) { }
 
-        public PluginHandler(IReporter reporter, IFileSystem fileSystem, IAssemblyWrapper assemblyWrapper, IFileversionWrapper versionWrapper)
+        public PluginHandler(
+            IReporter reporter,
+            IFileSystem fileSystem,
+            IAssemblyWrapper assemblyWrapper,
+            IFileversionWrapper versionWrapper,
+            Dictionary<string, ISqlLintRule> rules)
         {
             this.reporter = reporter;
             this.fileSystem = fileSystem;
             this.assemblyWrapper = assemblyWrapper;
             this.versionWrapper = versionWrapper;
+            this.rules = rules;
         }
 
         public IList<IPlugin> Plugins => plugins.Values.ToList();
 
-        private Dictionary<Type, IPlugin> List => plugins ?? (plugins = new Dictionary<Type, IPlugin>());
+        private Dictionary<Type, IPlugin> List => plugins ??= new Dictionary<Type, IPlugin>();
 
         public void ProcessPaths(Dictionary<string, string> pluginPaths)
         {
@@ -87,20 +94,36 @@ namespace TSQLLint.Infrastructure.Plugins
         public void LoadPlugin(string assemblyPath)
         {
             var path = fileSystem.Path.GetFullPath(assemblyPath);
-            var dll = assemblyWrapper.LoadFile(path);
+            var dll = assemblyWrapper.LoadFrom(path);
 
             foreach (var type in assemblyWrapper.GetExportedTypes(dll))
             {
-                if (!type.GetInterfaces().Contains(typeof(IPlugin)))
+                var inerfaces = type.GetInterfaces();
+
+                if (!inerfaces.Contains(typeof(IPlugin)))
                 {
                     continue;
                 }
 
                 if (!List.ContainsKey(type))
                 {
-                    List.Add(type, (IPlugin)Activator.CreateInstance(type));
+                    var plugin = (IPlugin)Activator.CreateInstance(type);
+                    List.Add(type, plugin);
                     var version = versionWrapper.GetVersion(dll);
                     reporter.Report($"Loaded plugin: '{type.FullName}', Version: '{version}'");
+
+                    foreach (var rule in plugin.GetRules())
+                    {
+                        try
+                        {
+                            rules.Add(rule.Key, rule.Value);
+                        }
+                        catch (Exception exception)
+                        {
+                            reporter.Report($"There was a problem with plugin: {type.FullName} - {exception.Message}");
+                            Trace.WriteLine(exception);
+                        }
+                    }
                 }
                 else
                 {

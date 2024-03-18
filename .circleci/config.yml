@@ -5,29 +5,41 @@ jobs:
 
   build:
     docker:
-      - image: mcr.microsoft.com/dotnet/sdk:5.0
+      - image: mcr.microsoft.com/dotnet/sdk:7.0
     steps:
       - checkout
       - run:
           name: build and test
-          command: ./scripts/dotnet_build_test.sh
+          command: ./scripts/dotnet_build_test.sh net7.0
 
   build and notify:
     docker:
-      - image: mcr.microsoft.com/dotnet/sdk:5.0
+      - image: mcr.microsoft.com/dotnet/sdk:7.0
     steps:
       - checkout
       - run:
           name: build and test
-          command: ./scripts/dotnet_build_test.sh
+          command: ./scripts/dotnet_build_test.sh net7.0
       - store_artifacts:
           path: /artifacts/linux-x64.tgz
       - store_artifacts:
+          path: /artifacts/linux-musl-x64.tgz
+      - store_artifacts:
+          path: /artifacts/linux-musl-arm64.tgz
+      - store_artifacts:
+          path: /artifacts/linux-arm.tgz
+      - store_artifacts:
+          path: /artifacts/linux-arm64.tgz
+      - store_artifacts:
           path: /artifacts/osx-x64.tgz
+      - store_artifacts:
+          path: /artifacts/osx-arm64.tgz
       - store_artifacts:
           path: /artifacts/win-x64.tgz
       - store_artifacts:
           path: /artifacts/win-x86.tgz
+      - store_artifacts:
+          path: /artifacts/win-arm64.tgz
       - slack/notify:
           event: fail
           template: basic_fail_1
@@ -42,7 +54,7 @@ jobs:
 
   package and push to nuget:
     docker:
-      - image: mcr.microsoft.com/dotnet/sdk:5.0
+      - image: mcr.microsoft.com/dotnet/sdk:7.0
     steps:
       - checkout
       - run:
@@ -83,13 +95,13 @@ workflows:
               only:
                 - /pull\/\d+/
 
-  build branches:
-    jobs:
-      - build and notify:
-          filters:
-            branches:
-              only:
-                - /.*/
+#  build branches:
+#    jobs:
+#      - build and notify:
+#          filters:
+#            branches:
+#              only:
+#                - /.*/
 
   build and publish tags:
     jobs:

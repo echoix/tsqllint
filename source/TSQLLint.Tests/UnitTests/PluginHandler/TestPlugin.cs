@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using TSQLLint.Common;
 
@@ -16,14 +17,23 @@ namespace TSQLLint.Tests.UnitTests.PluginHandler
             {
                 lineNumber++;
                 var column = line.IndexOf("\t", StringComparison.Ordinal);
-                reporter.ReportViolation(new TestRuleViolation(
-                    context.FilePath,
-                    "prefer-tabs",
-                    "Should use spaces rather than tabs",
-                    lineNumber,
-                    column,
-                    RuleViolationSeverity.Warning));
+
+                if (column >= 0)
+                {
+                    reporter.ReportViolation(new TestRuleViolation(
+                        context.FilePath,
+                        "prefer-tabs",
+                        "Should use spaces rather than tabs",
+                        lineNumber,
+                        column,
+                        RuleViolationSeverity.Warning));
+                }
             }
         }
+
+        public IDictionary<string, ISqlLintRule> GetRules() => new Dictionary<string, ISqlLintRule>
+        {
+            ["no-comments"] = new TestPluginRule(null)
+        };
     }
 }

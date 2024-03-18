@@ -1,40 +1,36 @@
-using System;
 using Microsoft.SqlServer.TransactSql.ScriptDom;
+using System;
 using TSQLLint.Core.Interfaces;
 
 namespace TSQLLint.Infrastructure.Rules
 {
-    public class SetQuotedIdentifierRule : TSqlFragmentVisitor, ISqlRule
+    public class SetQuotedIdentifierRule : BaseNearTopOfFileRule, ISqlRule
     {
-        private readonly Action<string, string, int, int> errorCallback;
-
-        private bool errorLogged;
-
         public SetQuotedIdentifierRule(Action<string, string, int, int> errorCallback)
+            : base(errorCallback)
         {
-            this.errorCallback = errorCallback;
         }
 
-        public string RULE_NAME => "set-quoted-identifier";
+        public override string RULE_NAME => "set-quoted-identifier";
 
-        public string RULE_TEXT => "Expected SET QUOTED_IDENTIFIER ON near top of file";
+        public override string RULE_TEXT => "Expected SET QUOTED_IDENTIFIER ON near top of file";
 
-        public int DynamicSqlStartColumn { get; set; }
+        public override string Insert => "SET QUOTED_IDENTIFIER ON;";
 
-        public int DynamicSqlStartLine { get; set; }
+        public override Func<string, bool> Remove =>
+            x => x.StartsWith("SET QUOTED_IDENTIFIER", StringComparison.CurrentCultureIgnoreCase);
 
         public override void Visit(TSqlScript node)
         {
             var childQuotedidentifierVisitor = new ChildQuotedidentifierVisitor();
             node.AcceptChildren(childQuotedidentifierVisitor);
 
-            if (childQuotedidentifierVisitor.QuotedIdentifierFound || errorLogged)
+            if (childQuotedidentifierVisitor.QuotedIdentifierFound)
             {
                 return;
             }
 
             errorCallback(RULE_NAME, RULE_TEXT, node.StartLine, node.StartColumn);
-            errorLogged = true;
         }
 
         public class ChildQuotedidentifierVisitor : TSqlFragmentVisitor

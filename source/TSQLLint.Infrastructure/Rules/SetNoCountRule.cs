@@ -1,25 +1,28 @@
-using System;
 using Microsoft.SqlServer.TransactSql.ScriptDom;
+using System;
+using System.Collections.Generic;
+using System.Text.RegularExpressions;
+using TSQLLint.Common;
 using TSQLLint.Core.Interfaces;
+using TSQLLint.Infrastructure.Rules.Common;
 
 namespace TSQLLint.Infrastructure.Rules
 {
-    public class SetNoCountRule : TSqlFragmentVisitor, ISqlRule
+    public class SetNoCountRule : BaseNearTopOfFileRule, ISqlRule
     {
-        private readonly Action<string, string, int, int> errorCallback;
+        public readonly Regex IsNoCountOff = new Regex(@"\S*SET NOCOUNT OFF", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         public SetNoCountRule(Action<string, string, int, int> errorCallback)
+            : base(errorCallback)
         {
-            this.errorCallback = errorCallback;
         }
 
-        public string RULE_NAME => "set-nocount";
+        public override string RULE_NAME => "set-nocount";
 
-        public string RULE_TEXT => "Expected SET NOCOUNT ON near top of file";
+        public override string RULE_TEXT => "Expected SET NOCOUNT ON near top of file";
+        public override string Insert => "SET NOCOUNT ON;";
 
-        public int DynamicSqlStartColumn { get; set; }
-
-        public int DynamicSqlStartLine { get; set; }
+        public override Func<string, bool> Remove => (x) => IsNoCountOff.IsMatch(x);
 
         public override void Visit(TSqlScript node)
         {

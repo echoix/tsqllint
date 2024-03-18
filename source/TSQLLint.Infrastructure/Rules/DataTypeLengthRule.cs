@@ -1,14 +1,13 @@
+using Microsoft.SqlServer.TransactSql.ScriptDom;
 using System;
 using System.Linq;
-using Microsoft.SqlServer.TransactSql.ScriptDom;
 using TSQLLint.Core.Interfaces;
+using TSQLLint.Infrastructure.Rules.Common;
 
 namespace TSQLLint.Infrastructure.Rules
 {
-    public class DataTypeLengthRule : TSqlFragmentVisitor, ISqlRule
+    public class DataTypeLengthRule : BaseRuleVisitor, ISqlRule
     {
-        private readonly Action<string, string, int, int> errorCallback;
-
         private readonly SqlDataTypeOption[] typesThatRequireLength =
         {
                 SqlDataTypeOption.Char,
@@ -23,31 +22,25 @@ namespace TSQLLint.Infrastructure.Rules
         };
 
         public DataTypeLengthRule(Action<string, string, int, int> errorCallback)
+            : base(errorCallback)
         {
-            this.errorCallback = errorCallback;
         }
 
-        public string RULE_NAME => "data-type-length";
+        public override string RULE_NAME => "data-type-length";
 
-        public string RULE_TEXT => "Data type length not specified";
-
-        public int DynamicSqlStartColumn { get; set; }
-
-        public int DynamicSqlStartLine { get; set; }
+        public override string RULE_TEXT => "Data type length not specified";
 
         public override void Visit(SqlDataTypeReference node)
         {
             if (typesThatRequireLength.Any(option => Equals(option, node.SqlDataTypeOption) && node.Parameters.Count < 1))
             {
-                errorCallback(RULE_NAME, RULE_TEXT, node.StartLine, GetColumnNumber(node));
+                errorCallback(RULE_NAME, RULE_TEXT, GetLineNumber(node), GetColumnNumber(node));
             }
         }
 
-        private int GetColumnNumber(TSqlFragment node)
+        protected override int GetColumnNumber(TSqlFragment node)
         {
-            return node.StartLine == DynamicSqlStartLine
-                ? node.StartColumn + node.FragmentLength + DynamicSqlStartColumn
-                : node.StartColumn + node.FragmentLength;
+            return node.FragmentLength + base.GetColumnNumber(node);
         }
     }
 }

@@ -16,6 +16,8 @@ namespace TSQLLint.Tests.UnitTests.Parser
     [TestFixture]
     public class SqlFileProcessorTests
     {
+        private static Dictionary<string, Type> ruleList = RuleVisitorFriendlyNameTypeMap.List;
+
         [Test]
         public void ProcessPath_SingleFile_ShouldProcessFile()
         {
@@ -27,7 +29,8 @@ namespace TSQLLint.Tests.UnitTests.Parser
             var fileSystem = Substitute.For<IFileSystem>();
             var fileBase = Substitute.For<FileBase>();
             var pluginHandler = Substitute.For<IPluginHandler>();
-            var processor = new SqlFileProcessor(ruleVisitor, pluginHandler, reporter, fileSystem);
+            var globPatternMatcher = Substitute.For<IGlobPatternMatcher>();
+            var processor = new SqlFileProcessor(ruleVisitor, pluginHandler, reporter, fileSystem, ruleList, globPatternMatcher);
 
             fileBase.Exists(filePath).Returns(true);
             fileBase.OpenRead(filePath).Returns(ParsingUtility.GenerateStreamFromString("Some Sql To Parse"));
@@ -39,7 +42,7 @@ namespace TSQLLint.Tests.UnitTests.Parser
             // assert
             fileBase.Received().Exists(filePath);
             fileBase.Received().OpenRead(filePath);
-            ruleVisitor.Received().VisitRules(filePath, Arg.Any<IEnumerable<IExtendedRuleException>>(),  Arg.Any<Stream>());
+            ruleVisitor.Received().VisitRules(filePath, Arg.Any<IEnumerable<IExtendedRuleException>>(), Arg.Any<Stream>());
             Assert.AreEqual(1, processor.FileCount);
         }
 
@@ -55,6 +58,7 @@ namespace TSQLLint.Tests.UnitTests.Parser
             var ruleVisitor = Substitute.For<IRuleVisitor>();
             var pluginHandler = Substitute.For<IPluginHandler>();
             var reporter = Substitute.For<IReporter>();
+            var globPatternMatcher = Substitute.For<IGlobPatternMatcher>();
 
             var fileSystem = new MockFileSystem(new Dictionary<string, MockFileData>
             {
@@ -72,7 +76,8 @@ namespace TSQLLint.Tests.UnitTests.Parser
                 }
             });
 
-            var processor = new SqlFileProcessor(ruleVisitor, pluginHandler, reporter, fileSystem);
+            var processor = new SqlFileProcessor(ruleVisitor, pluginHandler, reporter, fileSystem, ruleList, globPatternMatcher);
+            globPatternMatcher.GetResultsInFullPath(TestHelper.GetTestFilePath(@"c:\dbscripts")).Returns(new[] { filePath1, filePath3, filePath4 });
 
             // act
             processor.ProcessPath(TestHelper.GetTestFilePath(@"c:\dbscripts"));
@@ -97,6 +102,7 @@ namespace TSQLLint.Tests.UnitTests.Parser
             var ruleVisitor = Substitute.For<IRuleVisitor>();
             var reporter = Substitute.For<IReporter>();
             var pluginHandler = Substitute.For<IPluginHandler>();
+            var globPatternMatcher = Substitute.For<IGlobPatternMatcher>();
 
             var fileSystem = new MockFileSystem(new Dictionary<string, MockFileData>
             {
@@ -114,7 +120,8 @@ namespace TSQLLint.Tests.UnitTests.Parser
                 }
             });
 
-            var processor = new SqlFileProcessor(ruleVisitor, pluginHandler, reporter, fileSystem);
+            var processor = new SqlFileProcessor(ruleVisitor, pluginHandler, reporter, fileSystem, ruleList, globPatternMatcher);
+            globPatternMatcher.GetResultsInFullPath(TestHelper.GetTestFilePath(@"c:\dbscripts")).Returns(new[] { filePath1, filePath2, filePath3, filePath4 });
 
             // act
             processor.ProcessPath(TestHelper.GetTestFilePath(@"c:\dbscripts"));
@@ -138,6 +145,7 @@ namespace TSQLLint.Tests.UnitTests.Parser
             var fileSystem = Substitute.For<IFileSystem>();
             var fileBase = Substitute.For<FileBase>();
             var pluginHandler = Substitute.For<IPluginHandler>();
+            var globPatternMatcher = Substitute.For<IGlobPatternMatcher>();
 
             fileBase.Exists(filePath).Returns(false);
             fileSystem.File.Returns(fileBase);
@@ -145,7 +153,7 @@ namespace TSQLLint.Tests.UnitTests.Parser
             directoryBase.Exists(filePath).Returns(false);
             fileSystem.Directory.Returns(directoryBase);
 
-            var processor = new SqlFileProcessor(ruleVisitor, pluginHandler, reporter, fileSystem);
+            var processor = new SqlFileProcessor(ruleVisitor, pluginHandler, reporter, fileSystem, ruleList, globPatternMatcher);
 
             // act
             processor.ProcessPath(filePath);
@@ -166,6 +174,7 @@ namespace TSQLLint.Tests.UnitTests.Parser
             var filePath2 = TestHelper.GetTestFilePath(@"c:\dbscripts\file2.txt");
             var filePath3 = TestHelper.GetTestFilePath(@"c:\dbscripts\file3.sql");
             var filePath4 = TestHelper.GetTestFilePath(@"c:\dbscripts\file4.Sql");
+            var globPatternMatcher = Substitute.For<IGlobPatternMatcher>();
 
             var ruleVisitor = Substitute.For<IRuleVisitor>();
             var reporter = Substitute.For<IReporter>();
@@ -187,7 +196,7 @@ namespace TSQLLint.Tests.UnitTests.Parser
                 }
             });
 
-            var processor = new SqlFileProcessor(ruleVisitor, pluginHandler, reporter, fileSystem);
+            var processor = new SqlFileProcessor(ruleVisitor, pluginHandler, reporter, fileSystem, ruleList, globPatternMatcher);
 
             // act
             processor.ProcessPath(TestHelper.GetTestFilePath(@"c:\dbscripts\file?.sql"));
@@ -213,6 +222,7 @@ namespace TSQLLint.Tests.UnitTests.Parser
             var ruleVisitor = Substitute.For<IRuleVisitor>();
             var reporter = Substitute.For<IReporter>();
             var pluginHandler = Substitute.For<IPluginHandler>();
+            var globPatternMatcher = Substitute.For<IGlobPatternMatcher>();
 
             var fileSystem = new MockFileSystem(new Dictionary<string, MockFileData>
             {
@@ -233,7 +243,7 @@ namespace TSQLLint.Tests.UnitTests.Parser
                 }
             });
 
-            var processor = new SqlFileProcessor(ruleVisitor, pluginHandler, reporter, fileSystem);
+            var processor = new SqlFileProcessor(ruleVisitor, pluginHandler, reporter, fileSystem, ruleList, globPatternMatcher);
 
             // act
             processor.ProcessPath(TestHelper.GetTestFilePath(@"c:\dbscripts\file*.*"));
@@ -256,6 +266,7 @@ namespace TSQLLint.Tests.UnitTests.Parser
             var ruleVisitor = Substitute.For<IRuleVisitor>();
             var reporter = Substitute.For<IReporter>();
             var pluginHandler = Substitute.For<IPluginHandler>();
+            var globPatternMatcher = Substitute.For<IGlobPatternMatcher>();
 
             var fileSystem = new MockFileSystem(
                 new Dictionary<string, MockFileData>
@@ -266,7 +277,7 @@ namespace TSQLLint.Tests.UnitTests.Parser
                 },
                 TestHelper.GetTestFilePath(@"c:\dbscripts"));
 
-            var processor = new SqlFileProcessor(ruleVisitor, pluginHandler, reporter, fileSystem);
+            var processor = new SqlFileProcessor(ruleVisitor, pluginHandler, reporter, fileSystem, ruleList, globPatternMatcher);
 
             // act
             processor.ProcessPath(TestHelper.GetTestFilePath(@"c:\doesntExist\file*.*"));
@@ -290,6 +301,7 @@ namespace TSQLLint.Tests.UnitTests.Parser
             var ruleVisitor = Substitute.For<IRuleVisitor>();
             var reporter = Substitute.For<IReporter>();
             var pluginHandler = Substitute.For<IPluginHandler>();
+            var globPatternMatcher = Substitute.For<IGlobPatternMatcher>();
 
             var fileSystem = new MockFileSystem(
                 new Dictionary<string, MockFileData>
@@ -311,7 +323,7 @@ namespace TSQLLint.Tests.UnitTests.Parser
                     }
                 }, TestHelper.GetTestFilePath(@"c:\dbscripts"));
 
-            var processor = new SqlFileProcessor(ruleVisitor, pluginHandler, reporter, fileSystem);
+            var processor = new SqlFileProcessor(ruleVisitor, pluginHandler, reporter, fileSystem, ruleList, globPatternMatcher);
 
             // act
             processor.ProcessPath(@"file*.*");
@@ -339,6 +351,7 @@ namespace TSQLLint.Tests.UnitTests.Parser
             var ruleVisitor = Substitute.For<IRuleVisitor>();
             var reporter = Substitute.For<IReporter>();
             var pluginHandler = Substitute.For<IPluginHandler>();
+            var globPatternMatcher = Substitute.For<IGlobPatternMatcher>();
 
             var fileSystem = new MockFileSystem(new Dictionary<string, MockFileData>
             {
@@ -347,7 +360,7 @@ namespace TSQLLint.Tests.UnitTests.Parser
                 }
             });
 
-            var processor = new SqlFileProcessor(ruleVisitor, pluginHandler, reporter, fileSystem);
+            var processor = new SqlFileProcessor(ruleVisitor, pluginHandler, reporter, fileSystem, ruleList, globPatternMatcher);
 
             // act
             processor.ProcessPath(TestHelper.GetTestFilePath(@"c:\dbscripts\invalid*.*"));
@@ -366,7 +379,9 @@ namespace TSQLLint.Tests.UnitTests.Parser
             var reporter = Substitute.For<IReporter>();
             var fileSystem = Substitute.For<IFileSystem>();
             var pluginHandler = Substitute.For<IPluginHandler>();
-            var processor = new SqlFileProcessor(ruleVisitor, pluginHandler, reporter, fileSystem);
+            var globPatternMatcher = Substitute.For<IGlobPatternMatcher>();
+
+            var processor = new SqlFileProcessor(ruleVisitor, pluginHandler, reporter, fileSystem, ruleList, globPatternMatcher);
 
             // act
             processor.ProcessList(new List<string>());
@@ -388,6 +403,7 @@ namespace TSQLLint.Tests.UnitTests.Parser
             var ruleVisitor = Substitute.For<IRuleVisitor>();
             var reporter = Substitute.For<IReporter>();
             var pluginHandler = Substitute.For<IPluginHandler>();
+            var globPatternMatcher = Substitute.For<IGlobPatternMatcher>();
 
             var fileSystem = new MockFileSystem(new Dictionary<string, MockFileData>
             {
@@ -405,7 +421,9 @@ namespace TSQLLint.Tests.UnitTests.Parser
                 }
             });
 
-            var processor = new SqlFileProcessor(ruleVisitor, pluginHandler, reporter, fileSystem);
+            var processor = new SqlFileProcessor(ruleVisitor, pluginHandler, reporter, fileSystem, ruleList, globPatternMatcher);
+            globPatternMatcher.GetResultsInFullPath(TestHelper.GetTestFilePath(@"c:\dbscripts\db1\")).Returns(new[] { filePath2 });
+            globPatternMatcher.GetResultsInFullPath(TestHelper.GetTestFilePath(@"c:\dbscripts\db2\sproc")).Returns(new[] { filePath4 });
 
             var f1 = TestHelper.GetTestFilePath(@"c:\dbscripts\db2\sproc");
             var f2 = TestHelper.GetTestFilePath(@"c:\dbscripts\db2\file3.sql");
@@ -438,6 +456,7 @@ namespace TSQLLint.Tests.UnitTests.Parser
             var ruleVisitor = Substitute.For<IRuleVisitor>();
             var reporter = Substitute.For<IReporter>();
             var pluginHandler = Substitute.For<IPluginHandler>();
+            var globPatternMatcher = Substitute.For<IGlobPatternMatcher>();
 
             var fileSystem = new MockFileSystem(new Dictionary<string, MockFileData>
             {
@@ -449,7 +468,8 @@ namespace TSQLLint.Tests.UnitTests.Parser
                 }
             });
 
-            var processor = new SqlFileProcessor(ruleVisitor, pluginHandler, reporter, fileSystem);
+            var processor = new SqlFileProcessor(ruleVisitor, pluginHandler, reporter, fileSystem, ruleList, globPatternMatcher);
+            globPatternMatcher.GetResultsInFullPath(TestHelper.GetTestFilePath(@"c:\dbscripts\db1\")).Returns(new[] { filePath1, filePath2 });
 
             // act
             processor.ProcessList(new List<string> { invalidFilePath, TestHelper.GetTestFilePath(@"c:\dbscripts\db1\") });

@@ -1,38 +1,30 @@
+using Microsoft.SqlServer.TransactSql.ScriptDom;
 using System;
 using System.Collections.Generic;
-using Microsoft.SqlServer.TransactSql.ScriptDom;
 using TSQLLint.Core.Interfaces;
 using TSQLLint.Infrastructure.Rules.Common;
 
 namespace TSQLLint.Infrastructure.Rules
 {
-    public class NonSargableRule : TSqlFragmentVisitor, ISqlRule
+    public class NonSargableRule : BaseRuleVisitor, ISqlRule
     {
-        private readonly Action<string, string, int, int> errorCallback;
-
-        private readonly List<TSqlFragment> errorsReported = new List<TSqlFragment>();
-
-        private bool multiClauseQuery;
+        private readonly List<TSqlFragment> errorsReported = new();
 
         public NonSargableRule(Action<string, string, int, int> errorCallback)
+            : base(errorCallback)
         {
-            this.errorCallback = errorCallback;
         }
 
-        public string RULE_NAME => "non-sargable";
+        public override string RULE_NAME => "non-sargable";
 
-        public string RULE_TEXT => "Performing functions on filter clauses or join predicates can cause performance problems";
-
-        public int DynamicSqlStartColumn { get; set; }
-
-        public int DynamicSqlStartLine { get; set; }
+        public override string RULE_TEXT => "Performing functions on filter clauses or join predicates can cause performance problems";
 
         public override void Visit(JoinTableReference node)
         {
             var predicateExpressionVisitor = new PredicateVisitor();
             node.AcceptChildren(predicateExpressionVisitor);
             var multiClauseQuery = predicateExpressionVisitor.PredicatesFound;
-            
+
             var joinVisitor = new JoinQueryVisitor(VisitorCallback, multiClauseQuery);
             node.AcceptChildren(joinVisitor);
         }
@@ -41,12 +33,12 @@ namespace TSQLLint.Infrastructure.Rules
         {
             var predicateExpressionVisitor = new PredicateVisitor();
             node.Accept(predicateExpressionVisitor);
-            multiClauseQuery = predicateExpressionVisitor.PredicatesFound;
+            var multiClauseQuery = predicateExpressionVisitor.PredicatesFound;
 
             var childVisitor = new FunctionVisitor(VisitorCallback, multiClauseQuery);
             node.Accept(childVisitor);
         }
-        
+
         private void VisitorCallback(TSqlFragment childNode)
         {
             if (errorsReported.Contains(childNode))
@@ -54,12 +46,10 @@ namespace TSQLLint.Infrastructure.Rules
                 return;
             }
 
-            var dynamicSqlColumnAdjustment = childNode.StartLine == DynamicSqlStartLine
-                ? DynamicSqlStartColumn
-                : 0;
+            var dynamicSqlColumnAdjustment = GetDynamicSqlColumnOffset(childNode);
 
             errorsReported.Add(childNode);
-            errorCallback(RULE_NAME, RULE_TEXT, childNode.StartLine, ColumnNumberCalculator.GetNodeColumnPosition(childNode) + dynamicSqlColumnAdjustment);
+            errorCallback(RULE_NAME, RULE_TEXT, GetLineNumber(childNode), ColumnNumberCalculator.GetNodeColumnPosition(childNode) + dynamicSqlColumnAdjustment);
         }
 
         private class JoinQueryVisitor : TSqlFragmentVisitor
@@ -94,6 +84,7 @@ namespace TSQLLint.Infrastructure.Rules
         {
             private readonly bool isMultiClause;
             private readonly Action<TSqlFragment> childCallback;
+            private bool hasColumnReferenceParameter;
 
             public FunctionVisitor(Action<TSqlFragment> errorCallback, bool isMultiClause)
             {
@@ -103,10 +94,20 @@ namespace TSQLLint.Infrastructure.Rules
 
             public override void Visit(FunctionCall node)
             {
-                // allow isnull predicates provided other filters exist
-                if (node.FunctionName.Value == "ISNULL" && isMultiClause)
+                switch (node.FunctionName.Value.ToUpper())
                 {
-                    return;
+                    // allow isnull predicates provided other filters exist
+                    case "ISNULL" when isMultiClause:
+                        return;
+                    case "DATEADD":
+                    case "DATEDIFF":
+                    case "DATEDIFF_BIG":
+                    case "DATENAME":
+                    case "DATEPART":
+                    case "DATETRUNC":
+                    case "DATE_BUCKET":
+                        hasColumnReferenceParameter = true;
+                        break;
                 }
 
                 FindColumnReferences(node);
@@ -137,7 +138,7 @@ namespace TSQLLint.Infrastructure.Rules
                 var columnReferenceVisitor = new ColumnReferenceVisitor();
                 node.AcceptChildren(columnReferenceVisitor);
 
-                if (columnReferenceVisitor.ColumnReferenceFound)
+                if (columnReferenceVisitor.ColumnReferenceFound && (!hasColumnReferenceParameter || columnReferenceVisitor.ColumnReferenceCount > 1))
                 {
                     childCallback(node);
                 }
@@ -148,8 +149,11 @@ namespace TSQLLint.Infrastructure.Rules
         {
             public bool ColumnReferenceFound { get; private set; }
 
+            public int ColumnReferenceCount { get; private set; }
+
             public override void Visit(ColumnReferenceExpression node)
             {
+                ColumnReferenceCount++;
                 ColumnReferenceFound = true;
             }
         }

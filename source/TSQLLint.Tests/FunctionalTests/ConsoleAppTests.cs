@@ -3,7 +3,10 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Runtime.InteropServices;
+using Microsoft.SqlServer.Dac.Model;
+using NSubstitute.Core;
 using NUnit.Framework;
+using NUnit.Framework.Internal;
 using TSQLLint.Tests.Helpers;
 
 namespace TSQLLint.Tests.FunctionalTests
@@ -74,8 +77,50 @@ namespace TSQLLint.Tests.FunctionalTests
             ConsoleAppTestHelper.RunApplication(process);
         }
 
-        [TestCase(@"-l", "Loaded plugin: 'TSQLLint.Tests.UnitTests.PluginHandler.TestPlugin'", 0)]
-        public void LoadPluginTest(string testArgs, string expectedMessage, int expectedExitCode)
+        [TestCase(@"TestFiles/with-fixable-errors.sql", false)]
+        [TestCase(@"TestFiles/with-fixable-errors.sql", true)]
+        public void LintingErrorsFixedExitCodeTest(string testFile, bool withFix)
+        {
+            void OutputHandler(object sender, DataReceivedEventArgs args)
+            {
+                TestContext.Out.WriteLine(args.Data);
+            }
+
+            void ErrorHandler(object sender, DataReceivedEventArgs args) { }
+
+            void FixExitHandler(object sender, EventArgs args)
+            {
+                var processExitCode = ((Process)sender).ExitCode;
+                Assert.AreEqual(1, processExitCode, $"Exit code should be {1}");
+            }
+
+            void ValidateFixExitHandler(object sender, EventArgs args)
+            {
+                var expectedExistCode = withFix ? 0 : 1;
+                var processExitCode = ((Process)sender).ExitCode;
+                Assert.AreEqual(expectedExistCode, processExitCode, $"Exit code should be {expectedExistCode}");
+            }
+
+            var testPath = Path.GetFullPath(Path.Combine(testDirectoryPath, $@"FunctionalTests/{testFile}"));
+            var testOutputPath = testPath.Replace(".sql", $".fixed-{withFix}.sql");
+
+            var testFileContent = File.ReadAllText(testPath);
+            File.WriteAllText(testOutputPath, testFileContent);
+
+            var configFilePath = Path.GetFullPath(Path.Combine(testDirectoryPath, @"FunctionalTests/.tsqllintrc"));
+
+            var fixProcess = ConsoleAppTestHelper.GetProcess($"{(withFix ? "-x" : string.Empty)} -c {configFilePath} {testOutputPath}", OutputHandler, ErrorHandler, FixExitHandler);
+
+            var validateFixProcess = ConsoleAppTestHelper.GetProcess($" -c {configFilePath} {testOutputPath}", OutputHandler, ErrorHandler, ValidateFixExitHandler);
+
+            ConsoleAppTestHelper.RunApplication(fixProcess);
+            ConsoleAppTestHelper.RunApplication(validateFixProcess);
+        }
+
+        [TestCase(@"TestFiles/with-tabs.sql", "prefer-tabs : Should use spaces rather than tabs", 0)]
+        [TestCase(@"TestFiles/with-spaces.sql", "Loaded plugin: 'TSQLLint.Tests.UnitTests.PluginHandler.TestPlugin'", 0)]
+        [TestCase(@"TestFiles/with-comment.sql", "no-comments : Should not have comments", 0)]
+        public void LoadPluginTest(string testFile, string expectedMessage, int expectedExitCode)
         {
             var pluginLoaded = false;
 
@@ -95,6 +140,8 @@ namespace TSQLLint.Tests.FunctionalTests
                 Assert.AreEqual(expectedExitCode, processExitCode, $"Exit code should be {expectedExitCode}");
             }
 
+            var testPath = Path.GetFullPath(Path.Combine(testDirectoryPath, $@"FunctionalTests/{testFile}"));
+
             var configFilePath = Path.GetFullPath(Path.Combine(testDirectoryPath, @"FunctionalTests/.tsqllintrc-plugins"));
             var jsonString = File.ReadAllText(configFilePath);
             dynamic jsonObject = Newtonsoft.Json.JsonConvert.DeserializeObject(jsonString);
@@ -102,13 +149,82 @@ namespace TSQLLint.Tests.FunctionalTests
             var updatedConfigFilePath = Path.Combine(testDirectoryPath, @"FunctionalTests/.tsqllintrc-plugins-updated");
             File.WriteAllText(updatedConfigFilePath, jsonObject.ToString());
 
-            var process = ConsoleAppTestHelper.GetProcess($"-c {updatedConfigFilePath} {testArgs}", OutputHandler, ErrorHandler, ExitHandler);
+            var process = ConsoleAppTestHelper.GetProcess($"-c {updatedConfigFilePath} -l {testPath}", OutputHandler, ErrorHandler, ExitHandler);
             ConsoleAppTestHelper.RunApplication(process);
 
             Assert.IsTrue(pluginLoaded);
 
             // remove updated plugin config file
             File.Delete(updatedConfigFilePath);
+        }
+
+        [TestCase(@"TestFiles/with-dynamic-sql.sql", "System.InvalidCastException", 0)]
+        public void LoadPluginTest_No_Exception(string testFile, string errorMessage, int expectedExitCode)
+        {
+            var errorDetected = false;
+
+            void OutputHandler(object sender, DataReceivedEventArgs args)
+            {
+                if (args.Data != null && args.Data.Contains(errorMessage))
+                {
+                    errorDetected = true;
+                }
+            }
+
+            void ErrorHandler(object sender, DataReceivedEventArgs args) { }
+
+            void ExitHandler(object sender, EventArgs args)
+            {
+                var processExitCode = ((Process)sender).ExitCode;
+                Assert.AreEqual(expectedExitCode, processExitCode, $"Exit code should be {expectedExitCode}");
+            }
+
+            var testPath = Path.GetFullPath(Path.Combine(testDirectoryPath, $@"FunctionalTests/{testFile}"));
+
+            var configFilePath = Path.GetFullPath(Path.Combine(testDirectoryPath, @"FunctionalTests/.tsqllintrc-plugins"));
+            var jsonString = File.ReadAllText(configFilePath);
+            dynamic jsonObject = Newtonsoft.Json.JsonConvert.DeserializeObject(jsonString);
+            jsonObject["plugins"]["test-plugin"] = ConsoleAppTestHelper.TestPluginPath;
+            var updatedConfigFilePath = Path.Combine(testDirectoryPath, @"FunctionalTests/.tsqllintrc-plugins-updated");
+            File.WriteAllText(updatedConfigFilePath, jsonObject.ToString());
+
+            var process = ConsoleAppTestHelper.GetProcess($"-c {updatedConfigFilePath} -l {testPath}", OutputHandler, ErrorHandler, ExitHandler);
+            ConsoleAppTestHelper.RunApplication(process);
+
+            Assert.IsFalse(errorDetected);
+
+            // remove updated plugin config file
+            File.Delete(updatedConfigFilePath);
+        }
+
+        [TestCase(7, 0)]
+        public void LintingFilesWithIgnoreListTest(int expectedFileCount, int expectedExitCode)
+        {
+            var passed = false;
+            void OutputHandler(object sender, DataReceivedEventArgs args)
+            {
+                if (args.Data != null && args.Data.Contains($"Linted {expectedFileCount} files"))
+                {
+                    passed = true;
+                }
+            }
+
+            void ErrorHandler(object sender, DataReceivedEventArgs args) { }
+
+            void ExitHandler(object sender, EventArgs args)
+            {
+                var processExitCode = ((Process)sender).ExitCode;
+                Assert.AreEqual(expectedExitCode, processExitCode, $"Exit code should be {expectedExitCode}");
+            }
+
+            var directoryPath = Path.GetFullPath(Path.Combine(testDirectoryPath, @"FunctionalTests/TestFiles"));
+            var configFilePath = Path.GetFullPath(Path.Combine(testDirectoryPath, @"FunctionalTests/.tsqllintrc"));
+            var ignoreListFilePath = Path.GetFullPath(Path.Combine(testDirectoryPath, @"FunctionalTests/.tsqllintignore"));
+
+            var process = ConsoleAppTestHelper.GetProcess($"-c {configFilePath} -g {ignoreListFilePath} {directoryPath}", OutputHandler, ErrorHandler, ExitHandler);
+            ConsoleAppTestHelper.RunApplication(process);
+
+            Assert.IsTrue(passed);
         }
     }
 }
